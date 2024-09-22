@@ -1,0 +1,17 @@
+﻿<Window x:Class="TimeTrack.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TimeTrack" Height="500" Width="525">
+    <Grid>
+        <Label x:Name="lblActiveTime" Content="Active Time: 0 hours" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top"/>
+        <Label x:Name="lblIdleTime" Content="Idle Time: 0 hours" HorizontalAlignment="Left" Margin="10,40,0,0" VerticalAlignment="Top"/>
+        <Label x:Name="lblRealTimeActive" Content="Real-Time Active Time: 0:00:00" HorizontalAlignment="Left" Margin="10,70,0,0" VerticalAlignment="Top"/>
+        <Label x:Name="lblRealTimeIdle" Content="Real-Time Idle Time: 0:00:00" HorizontalAlignment="Left" Margin="10,100,0,0" VerticalAlignment="Top"/>
+
+        
+        <Button Content="Show Sessions" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Height="30" Margin="120,200,0,0" Click="ShowSessions_Click"/>
+        <Button Content="Export to CSV" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Height="30" Margin="230,200,0,0" Click="ExportToCsv_Click"/>
+
+        <DataGrid x:Name="dataGridSessions" AutoGenerateColumns="True" HorizontalAlignment="Left" Margin="10,250,0,0" VerticalAlignment="Top" Height="200" Width="480"/>
+    </Grid>
+</Window>

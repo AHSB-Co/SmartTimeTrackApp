@@ -1,0 +1,14 @@
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\bin\Debug\TimeTrack.exe.config
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\obj\Debug\TimeTrack.csprojResolveAssemblyReference.cache
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\obj\Debug\MainWindow.baml
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\obj\Debug\MainWindow.g.cs
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\obj\Debug\App.g.cs
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\obj\Debug\TimeTrack_MarkupCompile.cache
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\obj\Debug\TimeTrack.g.resources
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\obj\Debug\TimeTrack.Properties.Resources.resources
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\obj\Debug\TimeTrack.csproj.GenerateResource.Cache
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\bin\Debug\TimeTrack.exe
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\bin\Debug\TimeTrack.pdb
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\obj\Debug\TimeTrack.exe
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\obj\Debug\TimeTrack.pdb
+c:\users\toponeengineer\documents\visual studio 2012\Projects\TimeTrack\TimeTrack\bin\Debug\Gma.System.MouseKeyHook.dll

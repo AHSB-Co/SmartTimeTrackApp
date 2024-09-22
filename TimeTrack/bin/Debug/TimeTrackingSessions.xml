@@ -1,0 +1,12 @@
+<TimeTrackingSessions>
+    <Session>
+        <Date>2024-09-21 12:00:00</Date>
+        <ActiveTime>2.5</ActiveTime> <!-- in hours -->
+        <IdleTime>1.0</IdleTime>     <!-- in hours -->
+    </Session>
+    <Session>
+        <Date>2024-09-22 14:00:00</Date>
+        <ActiveTime>3.0</ActiveTime>
+        <IdleTime>0.5</IdleTime>
+    </Session>
+</TimeTrackingSessions>
