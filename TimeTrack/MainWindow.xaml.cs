@@ -16,6 +16,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Controls;
 using System.Reflection; // For loading the embedded resource
+using IWshRuntimeLibrary;
 using WpfApplication = System.Windows.Application;
 
 namespace TimeTrack
@@ -42,23 +43,8 @@ namespace TimeTrack
         public MainWindow()
         {
             InitializeComponent();
-
-            // Create a NotifyIcon (system tray icon)
-            _notifyIcon = new NotifyIcon();
-            _notifyIcon.Icon = LoadTrayIcon(); 
-            _notifyIcon.Visible = true;
-            _notifyIcon.Text = "TimeTrack App";
-            _notifyIcon.BalloonTipText = "TimeTrack is running in the background.";
-
-            // Set up the context menu for the tray icon
-            var contextMenu = new ContextMenuStrip();
-            contextMenu.Items.Add("Restore", null, RestoreApp);
-            contextMenu.Items.Add("Exit", null, ExitApp);
-
-            _notifyIcon.ContextMenuStrip = contextMenu;
-
-            // Handle double-click event to restore app
-            _notifyIcon.DoubleClick += (sender, args) => RestoreApp(sender, args);
+            InitializeTrayIcon();
+            EnsureAutoStart();
 
             minuteWidth = TimeCanvas.ActualWidth / MinutesInDay;
             xmlHelper = new XmlHelper();
@@ -82,36 +68,54 @@ namespace TimeTrack
             StartAutoUpdateTimer();// Start the timer to automatically update the visualization every minute
         }
 
-        // Override the minimize behavior
-        protected override void OnStateChanged(EventArgs e)
+        private void EnsureAutoStart()
         {
-            if (WindowState == WindowState.Minimized)
+            string startupFolderPath = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+            string shortcutPath = System.IO.Path.Combine(startupFolderPath, "TimeTrackApp.lnk");
+
+
+            if (!System.IO.File.Exists(shortcutPath))
             {
-                Hide();  // Hide the window instead of minimizing
-                _notifyIcon.ShowBalloonTip(3000); // Show balloon tip for 3 seconds
+                CreateShortcut(shortcutPath);
             }
-            base.OnStateChanged(e);
         }
 
-        // Restore the app from the system tray
-        private void RestoreApp(object sender, EventArgs e)
+        private void CreateShortcut(string shortcutPath)
         {
-            Show();
-            WindowState = WindowState.Normal; // Restore window to its normal state
+            string appPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+
+            WshShell shell = new WshShell();
+            IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(shortcutPath);
+            shortcut.Description = "TimeTrack Application";
+            shortcut.TargetPath = appPath;
+            shortcut.Save();
         }
 
-        // Exit the app from the system tray
-        private void ExitApp(object sender, EventArgs e)
+        // Initialize the system tray icon
+        private void InitializeTrayIcon()
         {
-            _notifyIcon.Visible = false;  // Hide the tray icon
-            WpfApplication.Current.Shutdown();  // Close the application
+            _notifyIcon = new NotifyIcon
+            {
+                Icon = LoadTrayIcon(),
+                Visible = true,
+                Text = "TimeTrack"
+            };
+
+            // Set the context menu with an option to show and exit
+            _notifyIcon.ContextMenuStrip = new ContextMenuStrip();
+            _notifyIcon.ContextMenuStrip.Items.Add("Show", null, ShowApp);
+            _notifyIcon.ContextMenuStrip.Items.Add("Exit", null, ExitApp);
+
+            // Double-clicking the tray icon shows the window
+            _notifyIcon.DoubleClick += (sender, args) => ShowApp(sender, args);
         }
 
         // Load the icon for the tray from resources
         private System.Drawing.Icon LoadTrayIcon()
         {
             var assembly = Assembly.GetExecutingAssembly();
-            using (Stream stream = assembly.GetManifestResourceStream("TimeTrack.Resources.AppIcon.ico")) // Replace with your actual resource path
+            string resourceName = "TimeTrack.AppIcon.ico"; // Adjust based on your namespace and resource path
+            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
             {
                 if (stream != null)
                 {
@@ -122,6 +126,35 @@ namespace TimeTrack
                     throw new FileNotFoundException("Icon resource not found.");
                 }
             }
+        }
+
+        // Hide the window and minimize to tray
+        private void HideButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.Hide();
+            _notifyIcon.Visible = true;
+        }
+
+        // Show the application when the tray icon is double-clicked or "Show" is clicked in the context menu
+        private void ShowApp(object sender, EventArgs e)
+        {
+            this.Show();
+            this.WindowState = WindowState.Normal;
+        }
+
+        // Exit the application
+        private void ExitApp(object sender, EventArgs e)
+        {
+            _notifyIcon.Visible = false; // Hide tray icon
+            WpfApplication.Current.Shutdown();
+        }
+
+        // Override closing behavior to minimize to tray
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            // Minimize to tray instead of closing the window
+            e.Cancel = true;
+            this.Hide();
         }
 
         private async void InitializeTimesForToday()
@@ -593,23 +626,6 @@ namespace TimeTrack
             }
         }
 
-
-        private void ExportToCsv_Click(object sender, RoutedEventArgs e)
-        {
-            XDocument sessions = xmlHelper.GetSessions();
-            string csv = "Date,Active Time,Idle Time\n";
-
-            foreach (XElement session in sessions.Descendants("Session"))
-            {
-                string date = session.Element("Date").Value;
-                string activeTime = session.Element("ActiveTime").Value;
-                string idleTime = session.Element("IdleTime").Value;
-                csv += string.Format("{0},{1},{2}\n", date, activeTime, idleTime);
-            }
-
-            File.WriteAllText("TimeTrackingSessions.csv", csv);
-            System.Windows.MessageBox.Show("Data exported to TimeTrackingSessions.csv");
-        }
 
         //private void ShowNotification(string title, string message)
         //{

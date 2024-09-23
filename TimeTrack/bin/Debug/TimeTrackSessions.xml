@@ -410,4 +410,74 @@
     <ActiveTime>0.38</ActiveTime>
     <IdleTime>0.04</IdleTime>
   </Session>
+  <Session>
+    <Date>2024-09-23 00:53:42</Date>
+    <ActiveTime>0.39</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 00:54:42</Date>
+    <ActiveTime>0.4</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 00:55:42</Date>
+    <ActiveTime>0.41</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 00:56:42</Date>
+    <ActiveTime>0.43</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 00:57:42</Date>
+    <ActiveTime>0.45</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 00:58:42</Date>
+    <ActiveTime>0.46</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 00:59:42</Date>
+    <ActiveTime>0.48</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 01:00:42</Date>
+    <ActiveTime>0.5</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 01:01:42</Date>
+    <ActiveTime>0.51</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 01:02:42</Date>
+    <ActiveTime>0.53</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 01:03:42</Date>
+    <ActiveTime>0.55</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 01:10:03</Date>
+    <ActiveTime>0.55</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 01:11:03</Date>
+    <ActiveTime>0.57</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
+  <Session>
+    <Date>2024-09-23 01:12:03</Date>
+    <ActiveTime>0.58</ActiveTime>
+    <IdleTime>0.04</IdleTime>
+  </Session>
 </Sessions>
