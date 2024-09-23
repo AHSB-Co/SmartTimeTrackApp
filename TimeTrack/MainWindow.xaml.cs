@@ -7,7 +7,14 @@ using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Threading;
 using System.Xml.Linq;
-using System.Drawing;
+using Newtonsoft.Json;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows.Controls;
 
 namespace TimeTrack
 {
@@ -16,17 +23,30 @@ namespace TimeTrack
         private DispatcherTimer idleTimer;
         private DispatcherTimer realTimeUpdateTimer;
         private DispatcherTimer saveTimer;
+        private DispatcherTimer retryTimer;  // Retry timer for syncing failed sessions
         private DateTime lastActivityTime;
         private TimeSpan totalActiveTime;
         private TimeSpan totalIdleTime;
         private bool isIdle;
         private DateTime currentDate;
         private XmlHelper xmlHelper;
+        private HttpClient _httpClient;
+        private string _username = "user1";  // Dynamic user for multiple users
+        private const int MinutesInDay = 1440;  // 24 hours * 60 minutes
+        private double minuteWidth;  // Width for each minute on the canvas
+        private DispatcherTimer updateTimer;  // Timer to auto-update visualization every minute
 
         public MainWindow()
         {
             InitializeComponent();
+            minuteWidth = TimeCanvas.ActualWidth / MinutesInDay;
             xmlHelper = new XmlHelper();
+            _httpClient = new HttpClient
+            {
+                BaseAddress = new Uri("http://100.99.99.12/")  // Backend server IP
+            };
+            _httpClient.DefaultRequestHeaders.Accept.Clear();
+            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             // Initialize the times for today from the last session
             InitializeTimesForToday();
@@ -37,32 +57,64 @@ namespace TimeTrack
             StartIdleTimer();
             StartRealTimeUpdateTimer();
             StartAutoSaveTimer(); // Automatically save every minute
+            StartRetryTimer();    // Retry unsent sessions every few minutes
+            StartAutoUpdateTimer();// Start the timer to automatically update the visualization every minute
         }
 
-        // Initialize total active and idle times by reading the last session for today from XML
-        private void InitializeTimesForToday()
+        private async void InitializeTimesForToday()
         {
             totalActiveTime = TimeSpan.Zero;
             totalIdleTime = TimeSpan.Zero;
             lastActivityTime = DateTime.Now; // Initially set real-time tracking to zero
 
+            // Get today's date in "yyyy-MM-dd" format
             string today = DateTime.Now.ToString("yyyy-MM-dd");
-            XDocument sessions = xmlHelper.GetSessions();
 
-            // Get the last session for today, if available
-            var todaySession = sessions.Descendants("Session")
-                .Where(s => s.Element("Date").Value.Contains(today))
-                .OrderByDescending(s => s.Element("Date").Value)
-                .FirstOrDefault();
-
-            if (todaySession != null)
+            try
             {
-                // Initialize total active and idle times with today's session
-                double activeHours = double.Parse(todaySession.Element("ActiveTime").Value);
-                double idleHours = double.Parse(todaySession.Element("IdleTime").Value);
+                // Attempt to load from server first
+                var sessionData = await GetTodaySessionFromServer();
+                if (sessionData != null)
+                {
+                    // If the session is from today, use the values from the server
+                    totalActiveTime = TimeSpan.FromHours(sessionData.ActiveTime);
+                    totalIdleTime = TimeSpan.FromHours(sessionData.IdleTime);
+                }
+                else
+                {
+                    // Load from local XML if no session found on the server
+                    XDocument sessions = xmlHelper.GetSessions();
 
-                totalActiveTime = TimeSpan.FromHours(activeHours);
-                totalIdleTime = TimeSpan.FromHours(idleHours);
+                    // Get the last session from the XML, if available
+                    var lastSession = sessions.Descendants("Session")
+                        .OrderByDescending(s => s.Element("Date").Value)
+                        .FirstOrDefault();
+
+                    if (lastSession != null)
+                    {
+                        // Check if the last session's date matches today
+                        string sessionDate = lastSession.Element("Date").Value.Substring(0, 10); // Extract date part
+                        if (sessionDate == today)
+                        {
+                            // If the session is from today, use the values from the XML
+                            double activeHours = double.Parse(lastSession.Element("ActiveTime").Value);
+                            double idleHours = double.Parse(lastSession.Element("IdleTime").Value);
+
+                            totalActiveTime = TimeSpan.FromHours(activeHours);
+                            totalIdleTime = TimeSpan.FromHours(idleHours);
+                        }
+                        else
+                        {
+                            // If the session is not from today, initialize active/idle times to zero
+                            totalActiveTime = TimeSpan.Zero;
+                            totalIdleTime = TimeSpan.Zero;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error initializing times: " + ex.Message);
             }
         }
 
@@ -90,6 +142,14 @@ namespace TimeTrack
             saveTimer.Start();
         }
 
+        private void StartRetryTimer()
+        {
+            retryTimer = new DispatcherTimer();
+            retryTimer.Interval = TimeSpan.FromMinutes(5); // Retry syncing failed sessions every 5 minutes
+            retryTimer.Tick += RetryFailedSyncs;
+            retryTimer.Start();
+        }
+
         private void RealTimeUpdate_Tick(object sender, EventArgs e)
         {
             if (isIdle)
@@ -98,6 +158,14 @@ namespace TimeTrack
             }
             else
             {
+                // Check if at least 1 minute has passed since last activity update
+                TimeSpan timeSinceLastActivity = DateTime.Now - lastActivityTime;
+                if (timeSinceLastActivity.TotalMinutes >= 1)
+                {
+                    totalActiveTime += TimeSpan.FromMinutes(1); // Add 1 minute to total active time
+                    lastActivityTime = DateTime.Now;  // Reset the last activity time to now
+                }
+
                 UpdateActiveTimeUI();
             }
 
@@ -179,21 +247,17 @@ namespace TimeTrack
         private void UpdateActiveTimeUI()
         {
             TimeSpan realTimeActive = DateTime.Now - lastActivityTime;
-
-            lblActiveTime.Content = string.Format("Active Time: {0:F2} hours", totalActiveTime.TotalHours);
-            lblRealTimeActive.Content = string.Format("Real-Time Active Time: {0:hh\\:mm\\:ss}", realTimeActive);
-            lblIdleTime.Content = string.Format("Idle Time: {0:F2} hours", totalIdleTime.TotalHours);
-            lblRealTimeIdle.Content = "Real-Time Idle Time: 0:00:00";  // Reset idle time when active
+            
+            lblTotalActiveTime.Content = string.Format("Active Time: {0:F2} hours", totalActiveTime.TotalHours);
+            lblTotalIdleTime.Content = string.Format("Real-Time Active Time: {0:hh\\:mm\\:ss}", realTimeActive);
         }
 
         private void UpdateIdleTimeUI()
         {
             TimeSpan realTimeIdle = DateTime.Now - lastActivityTime;
 
-            lblIdleTime.Content = string.Format("Idle Time: {0:F2} hours", totalIdleTime.TotalHours);
-            lblRealTimeIdle.Content = string.Format("Real-Time Idle Time: {0:hh\\:mm\\:ss}", realTimeIdle);
-            lblActiveTime.Content = string.Format("Active Time: {0:F2} hours", totalActiveTime.TotalHours);
-            lblRealTimeActive.Content = "Real-Time Active Time: 0:00:00";  // Reset active time when idle
+            lblTotalActiveTime.Content = string.Format("Idle Time: {0:F2} hours", totalIdleTime.TotalHours);
+            lblTotalIdleTime.Content = string.Format("Real-Time Idle Time: {0:hh\\:mm\\:ss}", realTimeIdle);
         }
 
         private void SaveAutomatically(object sender, EventArgs e)
@@ -210,23 +274,262 @@ namespace TimeTrack
             double idleTime = Math.Round(totalIdleTime.TotalHours, 2);
 
             xmlHelper.SaveSession(sessionDate, activeTime, idleTime);
+
+            // Try to sync with backend server
+            try
+            {
+                SyncSessionWithServer(sessionDate, activeTime, idleTime).ContinueWith(task =>
+                {
+                    if (task.Status == TaskStatus.RanToCompletion)
+                    {
+                        Console.WriteLine("Session data synced successfully with server.");
+                    }
+                    else
+                    {
+                        // If the sync fails, save the session to the retry queue
+                        xmlHelper.SaveToRetryQueue(sessionDate, activeTime, idleTime);
+                        Console.WriteLine("Session data saved to retry queue due to sync failure.");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error syncing session: " + ex.Message);
+                // Save the session to the retry queue in case of any failure
+                xmlHelper.SaveToRetryQueue(sessionDate, activeTime, idleTime);
+            }
         }
 
-        private void ShowSessions_Click(object sender, RoutedEventArgs e)
+        private async Task SyncSessionWithServer(string sessionDate, double activeTime, double idleTime)
         {
-            XDocument sessions = xmlHelper.GetSessions();
-            var sessionList = new List<Session>();
-
-            foreach (XElement session in sessions.Descendants("Session"))
+            try
             {
-                string date = session.Element("Date").Value;
-                string activeTime = session.Element("ActiveTime").Value;
-                string idleTime = session.Element("IdleTime").Value;
-                sessionList.Add(new Session { Date = date, ActiveTime = activeTime, IdleTime = idleTime });
+                var sessionData = new
+                {
+                    Username = _username,
+                    Date = sessionDate,
+                    ActiveTime = activeTime,
+                    IdleTime = idleTime
+                };
+
+                string jsonData = JsonConvert.SerializeObject(sessionData);
+                StringContent content = new StringContent(jsonData, Encoding.UTF8, "application/json");
+
+                HttpResponseMessage response = await _httpClient.PostAsync("api/timesessions", content);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new HttpRequestException(string.Format("Failed to sync session with server. Status code: {0}", response.StatusCode));
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine("HTTP request error: " + ex.Message);
+                throw;  // Re-throw to ensure the task can be caught in SaveSession's ContinueWith.
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("General error occurred while syncing session: " + ex.Message);
+                throw;
+            }
+        }
+
+        private async Task<TimeSession> GetTodaySessionFromServer()
+        {
+            try
+            {
+                string today = DateTime.Now.ToString("yyyy-MM-dd");
+                HttpResponseMessage response = await _httpClient.GetAsync(string.Format("api/timesessions/today?username={0}", _username));
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string responseData = await response.Content.ReadAsStringAsync();
+                    return JsonConvert.DeserializeObject<TimeSession>(responseData);
+                }
+                else
+                {
+                    Console.WriteLine("Error retrieving session data from server: " + response.StatusCode);
+                    return null;
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine("HTTP request error: " + ex.Message);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("General error occurred while retrieving session: " + ex.Message);
+                return null;
+            }
+        }
+
+        // Retry syncing failed sessions
+        private void RetryFailedSyncs(object sender, EventArgs e)
+        {
+            var failedSessions = xmlHelper.GetRetryQueue();
+            foreach (var session in failedSessions)
+            {
+                SyncSessionWithServer(session.Date, session.ActiveTime, session.IdleTime).ContinueWith(task =>
+                {
+                    if (task.Status == TaskStatus.RanToCompletion)
+                    {
+                        // If successfully synced, remove from retry queue
+                        xmlHelper.RemoveFromRetryQueue(session);
+                        //Console.WriteLine($"Successfully retried sync for session on {session.Date}");
+                    }
+                    else
+                    {
+                        //Console.WriteLine($"Failed to retry sync for session on {session.Date}");
+                    }
+                });
+            }
+        }
+
+        private void StartAutoUpdateTimer()
+        {
+            updateTimer = new DispatcherTimer();
+            updateTimer.Interval = TimeSpan.FromMinutes(1); // Update every minute
+            updateTimer.Tick += (s, e) => UpdateSessionData(); // On tick, update the session data
+            updateTimer.Start(); // Start the timer immediately
+
+            // Initial call to show data without waiting for the first tick
+            UpdateSessionData();
+        }
+
+        private void UpdateSessionData()
+        {
+            // Parse the session data from XML
+            var sessions = ParseSessionsFromXml("TimeTrackSessions.xml");
+
+            // Create arrays to track active and idle minutes
+            bool[] activeMinutes = new bool[MinutesInDay];
+            bool[] idleMinutes = new bool[MinutesInDay];
+
+            // Loop through each session and calculate the active/idle times
+            for (int i = 1; i < sessions.Length; i++)
+            {
+                // Convert the session's start time to the minute of the day
+                DateTime previousSessionTime = DateTime.Parse(sessions[i - 1].Date);
+                DateTime currentSessionTime = DateTime.Parse(sessions[i].Date);
+
+                int currentSessionMinute = currentSessionTime.Hour * 60 + currentSessionTime.Minute;
+                double activeDifference = sessions[i].ActiveTime - sessions[i - 1].ActiveTime;
+                double idleDifference = sessions[i].IdleTime - sessions[i - 1].IdleTime;
+
+                // If both active and idle time increased, choose the larger difference
+                if (activeDifference > 0 && idleDifference > 0)
+                {
+                    if (activeDifference > idleDifference)
+                    {
+                        activeMinutes[currentSessionMinute] = true;
+                    }
+                    else
+                    {
+                        idleMinutes[currentSessionMinute] = true;
+                    }
+                }
+                // If only active time increased, mark as active
+                else if (activeDifference > 0)
+                {
+                    activeMinutes[currentSessionMinute] = true;
+                }
+                // If only idle time increased, mark as idle
+                else if (idleDifference > 0)
+                {
+                    idleMinutes[currentSessionMinute] = true;
+                }
             }
 
-            dataGridSessions.ItemsSource = sessionList;
+            // Visualize the active and idle times on the canvas
+            VisualizeTimeSlots(activeMinutes, idleMinutes);
         }
+
+        private void VisualizeTimeSlots(bool[] activeMinutes, bool[] idleMinutes)
+        {
+            // Clear the canvas before drawing new session data
+            TimeCanvas.Children.Clear();
+
+            // Get canvas width and calculate the width for each minute slot
+            minuteWidth = TimeCanvas.ActualWidth / MinutesInDay;
+
+            // Loop through each minute of the day and draw corresponding rectangles
+            for (int minute = 0; minute < MinutesInDay; minute++)
+            {
+                Rectangle rect = new Rectangle
+                {
+                    Width = minuteWidth,
+                    Height = TimeCanvas.ActualHeight
+                };
+
+                // Set color based on whether the minute is active or idle
+                if (activeMinutes[minute])
+                {
+                    rect.Fill = Brushes.Green;  // Active session
+                }
+                else if (idleMinutes[minute])
+                {
+                    rect.Fill = Brushes.Red;  // Idle session
+                }
+                else
+                {
+                    rect.Fill = Brushes.Black;  // Missing data (no session)
+                }
+
+                // Add the rectangle to the canvas at the appropriate position
+                Canvas.SetLeft(rect, minute * minuteWidth);  // Position the rectangle
+                TimeCanvas.Children.Add(rect);  // Add to the canvas
+            }
+        }
+
+        private Session[] ParseSessionsFromXml(string filePath)
+        {
+            XDocument doc = XDocument.Load(filePath);
+            return doc.Descendants("Session")
+                      .Select(s => new Session
+                      {
+                          Date = s.Element("Date").Value,
+                          ActiveTime = double.Parse(s.Element("ActiveTime").Value),
+                          IdleTime = double.Parse(s.Element("IdleTime").Value)
+                      }).ToArray();
+        }
+
+        // Method to load session from local XML file
+        private void LoadSessionFromLocalXml(ref TimeSpan totalActiveTime, ref TimeSpan totalIdleTime)
+        {
+            try
+            {
+                XDocument sessions = xmlHelper.GetSessions();
+                string today = DateTime.Now.ToString("yyyy-MM-dd");
+
+                // Find session for today
+                var todaySession = sessions.Descendants("Session")
+                    .Where(s => s.Element("Date").Value.Contains(today))
+                    .OrderByDescending(s => s.Element("Date").Value)
+                    .FirstOrDefault();
+
+                if (todaySession != null)
+                {
+                    // Get total active and idle times from XML
+                    double activeHours = double.Parse(todaySession.Element("ActiveTime").Value);
+                    double idleHours = double.Parse(todaySession.Element("IdleTime").Value);
+
+                    totalActiveTime = TimeSpan.FromHours(activeHours);
+                    totalIdleTime = TimeSpan.FromHours(idleHours);
+                }
+                else
+                {
+                    // If no session data is found, initialize to zero
+                    totalActiveTime = TimeSpan.Zero;
+                    totalIdleTime = TimeSpan.Zero;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error loading session data from XML: " + ex.Message);
+            }
+        }
+
 
         private void ExportToCsv_Click(object sender, RoutedEventArgs e)
         {
@@ -245,15 +548,15 @@ namespace TimeTrack
             System.Windows.MessageBox.Show("Data exported to TimeTrackingSessions.csv");
         }
 
-        private void ShowNotification(string title, string message)
-        {
-            NotifyIcon notifyIcon = new NotifyIcon();
-            notifyIcon.Visible = true;
-            notifyIcon.Icon = SystemIcons.Information;
-            notifyIcon.BalloonTipTitle = title;
-            notifyIcon.BalloonTipText = message;
-            notifyIcon.ShowBalloonTip(3000);  // Show for 3 seconds
-        }
+        //private void ShowNotification(string title, string message)
+        //{
+        //    NotifyIcon notifyIcon = new NotifyIcon();
+        //    notifyIcon.Visible = true;
+        //    notifyIcon.Icon = SystemIcons.Information;
+        //    notifyIcon.BalloonTipTitle = title;
+        //    notifyIcon.BalloonTipText = message;
+        //    notifyIcon.ShowBalloonTip(3000);  // Show notification for 3 seconds
+        //}
 
         [DllImport("user32.dll")]
         static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
@@ -269,7 +572,15 @@ namespace TimeTrack
     public class Session
     {
         public string Date { get; set; }
-        public string ActiveTime { get; set; }
-        public string IdleTime { get; set; }
+        public double ActiveTime { get; set; }
+        public double IdleTime { get; set; }
+    }
+
+    public class TimeSession
+    {
+        public string Username { get; set; }
+        public string Date { get; set; }
+        public double ActiveTime { get; set; }
+        public double IdleTime { get; set; }
     }
 }
