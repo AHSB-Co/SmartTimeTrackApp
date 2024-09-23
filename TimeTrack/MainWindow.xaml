@@ -1,21 +1,36 @@
 ﻿<Window x:Class="TimeTrack.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TimeTrack" Height="350" Width="525">
+        Title="TimeTrack"
+        Height="450"
+        Width="800"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Background="#FFFAF9F6"
+        FontFamily="Segoe UI" FontSize="14">
+
     <Grid>
-        <!-- Layout for showing the bars representing active/idle time -->
+        <!-- Main Stack Panel to hold the content -->
         <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
 
             <!-- Header -->
-            <TextBlock Text="Time Tracking Visualization" FontSize="18" FontWeight="Bold" Margin="10" HorizontalAlignment="Center" />
+            <TextBlock Text="🌸 Time Tracking Visualization 🌸"
+                       FontSize="24" FontWeight="Bold" Foreground="#FF6A82FB" Margin="0,20,0,20"
+                       HorizontalAlignment="Center"/>
 
-            <!-- Canvas for drawing Active and Idle Time Bars -->
-            <Canvas x:Name="TimeCanvas" Height="50" Width="400" Background="LightGray" Margin="10"/>
+            <!-- Cute Rounded Canvas for drawing Active and Idle Time Bars -->
+            <Border CornerRadius="20" BorderBrush="#FFB0BEC5" BorderThickness="1" Background="#FFF5F5F5" Padding="10">
+                <Canvas x:Name="TimeCanvas" Height="50" Width="400" Background="#FFFDFD96" />
+            </Border>
 
             <!-- Labels for displaying Total Active Time and Idle Time -->
-            <StackPanel Orientation="Vertical" Margin="10">
-                <Label x:Name="lblTotalActiveTime" Content="Total Active Time: 0 hours" FontSize="14" />
-                <Label x:Name="lblTotalIdleTime" Content="Total Idle Time: 0 hours" FontSize="14" />
+            <StackPanel Orientation="Vertical" Margin="20">
+                <Label x:Name="lblTotalActiveTime" Content="Total Active Time: 0 hours" 
+                       FontSize="16" Foreground="#FF68D391" FontWeight="SemiBold"
+                       HorizontalAlignment="Center" Margin="0,5,0,5"/>
+                <Label x:Name="lblTotalIdleTime" Content="Total Idle Time: 0 hours" 
+                       FontSize="16" Foreground="#FFFC8181" FontWeight="SemiBold"
+                       HorizontalAlignment="Center" Margin="0,5,0,5"/>
             </StackPanel>
 
         </StackPanel>

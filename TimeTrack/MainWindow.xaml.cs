@@ -15,6 +15,8 @@ using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Controls;
+using System.Reflection; // For loading the embedded resource
+using WpfApplication = System.Windows.Application;
 
 namespace TimeTrack
 {
@@ -35,10 +37,29 @@ namespace TimeTrack
         private const int MinutesInDay = 1440;  // 24 hours * 60 minutes
         private double minuteWidth;  // Width for each minute on the canvas
         private DispatcherTimer updateTimer;  // Timer to auto-update visualization every minute
+        private NotifyIcon _notifyIcon;
 
         public MainWindow()
         {
             InitializeComponent();
+
+            // Create a NotifyIcon (system tray icon)
+            _notifyIcon = new NotifyIcon();
+            _notifyIcon.Icon = LoadTrayIcon(); 
+            _notifyIcon.Visible = true;
+            _notifyIcon.Text = "TimeTrack App";
+            _notifyIcon.BalloonTipText = "TimeTrack is running in the background.";
+
+            // Set up the context menu for the tray icon
+            var contextMenu = new ContextMenuStrip();
+            contextMenu.Items.Add("Restore", null, RestoreApp);
+            contextMenu.Items.Add("Exit", null, ExitApp);
+
+            _notifyIcon.ContextMenuStrip = contextMenu;
+
+            // Handle double-click event to restore app
+            _notifyIcon.DoubleClick += (sender, args) => RestoreApp(sender, args);
+
             minuteWidth = TimeCanvas.ActualWidth / MinutesInDay;
             xmlHelper = new XmlHelper();
             _httpClient = new HttpClient
@@ -59,6 +80,48 @@ namespace TimeTrack
             StartAutoSaveTimer(); // Automatically save every minute
             StartRetryTimer();    // Retry unsent sessions every few minutes
             StartAutoUpdateTimer();// Start the timer to automatically update the visualization every minute
+        }
+
+        // Override the minimize behavior
+        protected override void OnStateChanged(EventArgs e)
+        {
+            if (WindowState == WindowState.Minimized)
+            {
+                Hide();  // Hide the window instead of minimizing
+                _notifyIcon.ShowBalloonTip(3000); // Show balloon tip for 3 seconds
+            }
+            base.OnStateChanged(e);
+        }
+
+        // Restore the app from the system tray
+        private void RestoreApp(object sender, EventArgs e)
+        {
+            Show();
+            WindowState = WindowState.Normal; // Restore window to its normal state
+        }
+
+        // Exit the app from the system tray
+        private void ExitApp(object sender, EventArgs e)
+        {
+            _notifyIcon.Visible = false;  // Hide the tray icon
+            WpfApplication.Current.Shutdown();  // Close the application
+        }
+
+        // Load the icon for the tray from resources
+        private System.Drawing.Icon LoadTrayIcon()
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            using (Stream stream = assembly.GetManifestResourceStream("TimeTrack.Resources.AppIcon.ico")) // Replace with your actual resource path
+            {
+                if (stream != null)
+                {
+                    return new System.Drawing.Icon(stream);
+                }
+                else
+                {
+                    throw new FileNotFoundException("Icon resource not found.");
+                }
+            }
         }
 
         private async void InitializeTimesForToday()
@@ -476,8 +539,8 @@ namespace TimeTrack
                     rect.Fill = Brushes.Black;  // Missing data (no session)
                 }
 
-                // Add the rectangle to the canvas at the appropriate position
-                Canvas.SetLeft(rect, minute * minuteWidth);  // Position the rectangle
+                // Add the rectangle to the canvas at the appropriate position (left to right)
+                Canvas.SetLeft(rect, minute * minuteWidth);  // Position the rectangle from left to right
                 TimeCanvas.Children.Add(rect);  // Add to the canvas
             }
         }
